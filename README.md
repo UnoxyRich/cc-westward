@@ -1,12 +1,15 @@
-# CC Westward
+# 🦅🦅🦅🇺🇸 CC Westward🇺🇸🤠🤠🤠
 
-让 Claude Code 在终端中随机切换到美国时区运行的轻量级开源 CLI 工具。
+让 Claude Code 在终端中随机切换到美国时区运行的轻量级开源 CLI 工具。🌎
 
-CC Westward 是一个很小的终端包装器。首次启动 Claude 时，它会从安全的美国 IANA 时区列表中随机选择一个时区并保存，之后继续复用这个时区，保持一致。它只会给启动出来的 Claude 子进程设置 `TZ`，不会修改系统时区。
+CC Westward 是一个很小的终端包装器。首次启动 Claude 时，它会从安全的美国 IANA 时区列表中随机选择一个时区并保存，之后继续复用这个时区，保持一致。它只会给启动出来的 Claude 子进程设置 `TIMEZONE`，不会修改系统时区。
 
-![CC Westward 设置界面](screenshots/example.png)
+![CC Westward 演示](screenshots/example.png)
 
-## 安装
+> [!NOTE]
+> ⭐ 如果这个项目对你有帮助，**欢迎 star + fork**，你的支持是持续维护的最大动力！
+
+## 📦 安装
 
 ```bash
 npm install -g cc-westward
