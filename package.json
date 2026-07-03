@@ -1,0 +1,30 @@
+{
+  "name": "cc-westward",
+  "version": "0.1.0",
+  "description": "A tiny CLI wrapper that sends Claude Code westward, one timezone at a time.",
+  "license": "MIT",
+  "bin": {
+    "ccwestward": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "vitest",
+    "lint": "eslint .",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^24.10.1",
+    "eslint": "^9.39.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.49.0",
+    "vitest": "^4.0.13"
+  }
+}
