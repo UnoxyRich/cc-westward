@@ -338,12 +338,18 @@ function removeManagedAliases(env: NodeJS.ProcessEnv): boolean {
 
 function shellConfig(env: NodeJS.ProcessEnv): { file: string; kind: "posix" | "fish" | "powershell" } {
   const home = env.USERPROFILE ?? env.HOME ?? os.homedir();
-  if (env.OS === "Windows_NT" || process.platform === "win32" || env.PSModulePath) {
-    const file =
-      env.OS === "Windows_NT" || process.platform === "win32"
-        ? path.join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1")
-        : path.join(env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "powershell", "Microsoft.PowerShell_profile.ps1");
-    return { file, kind: "powershell" };
+  if (env.OS === "Windows_NT") {
+    return {
+      file: path.join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"),
+      kind: "powershell"
+    };
+  }
+
+  if (env.PSModulePath) {
+    return {
+      file: path.join(env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "powershell", "Microsoft.PowerShell_profile.ps1"),
+      kind: "powershell"
+    };
   }
 
   const shell = path.basename(env.SHELL ?? "");
