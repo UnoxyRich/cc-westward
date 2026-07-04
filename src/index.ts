@@ -39,7 +39,7 @@ export function installDefaultAlias(env: NodeJS.ProcessEnv = process.env, stdout
   }
 
   const installed = installAlias(env, "claude", "ccwestward claude");
-  stdout.write(`cc-westward installed alias claude='ccwestward claude' in ${installed.file}\n`);
+  stdout.write(`cc-westward installed claude shortcut in ${installed.file}\n`);
 }
 
 export async function run(argv: string[], deps: RunDeps = {}): Promise<number> {
@@ -278,7 +278,7 @@ function installAlias(env: NodeJS.ProcessEnv, aliasName: string, target: string)
   const config = shellConfig(env);
   const start = `# cc-westward alias ${aliasName} start`;
   const end = `# cc-westward alias ${aliasName} end`;
-  const block = [start, aliasLine(aliasName, target, config.fish), end].join("\n");
+  const block = [start, aliasLine(aliasName, target, config.kind), end].join("\n");
   let text = "";
 
   try {
@@ -296,7 +296,7 @@ function installAlias(env: NodeJS.ProcessEnv, aliasName: string, target: string)
 
   mkdirSync(path.dirname(config.file), { recursive: true });
   writeFileSync(config.file, next.endsWith("\n") ? next : `${next}\n`);
-  return { file: config.file, reload: `source ${shellQuote(config.file)}` };
+  return { file: config.file, reload: reloadCommand(config.file, config.kind) };
 }
 
 async function resetSettings(configFile: string, env: NodeJS.ProcessEnv, prompt: Prompt, stdout: Writable): Promise<void> {
@@ -336,23 +336,34 @@ function removeManagedAliases(env: NodeJS.ProcessEnv): boolean {
   return true;
 }
 
-function shellConfig(env: NodeJS.ProcessEnv): { file: string; fish: boolean } {
-  const home = env.HOME ?? os.homedir();
+function shellConfig(env: NodeJS.ProcessEnv): { file: string; kind: "posix" | "fish" | "powershell" } {
+  const home = env.USERPROFILE ?? env.HOME ?? os.homedir();
+  if (env.OS === "Windows_NT" || process.platform === "win32") {
+    return { file: path.join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"), kind: "powershell" };
+  }
+
   const shell = path.basename(env.SHELL ?? "");
 
   if (shell === "fish") {
     const base = env.XDG_CONFIG_HOME ?? path.join(home, ".config");
-    return { file: path.join(base, "fish", "config.fish"), fish: true };
+    return { file: path.join(base, "fish", "config.fish"), kind: "fish" };
   }
 
   return {
     file: path.join(home, shell === "bash" ? ".bashrc" : ".zshrc"),
-    fish: false
+    kind: "posix"
   };
 }
 
-function aliasLine(aliasName: string, target: string, fish: boolean): string {
-  return fish ? `alias ${aliasName} '${target}'` : `alias ${aliasName}='${target}'`;
+function aliasLine(aliasName: string, target: string, kind: "posix" | "fish" | "powershell"): string {
+  if (kind === "powershell") {
+    return `function ${aliasName} { ${target} @args }`;
+  }
+  return kind === "fish" ? `alias ${aliasName} '${target}'` : `alias ${aliasName}='${target}'`;
+}
+
+function reloadCommand(file: string, kind: "posix" | "fish" | "powershell"): string {
+  return kind === "powershell" ? `. ${shellQuote(file)}` : `source ${shellQuote(file)}`;
 }
 
 function isAbortError(error: unknown): boolean {
@@ -443,6 +454,9 @@ function aliasText(aliasName: string, target: string): string {
     "",
     "# fish",
     `alias ${aliasName} '${target}'`,
+    "",
+    "# PowerShell",
+    `function ${aliasName} { ${target} @args }`,
     ""
   ].join("\n");
 }

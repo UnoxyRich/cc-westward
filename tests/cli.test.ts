@@ -146,6 +146,8 @@ describe("ccwestward", () => {
     expect(h.stdout.text).toContain("alias claude='ccwestward claude'");
     expect(h.stdout.text).toContain("# fish");
     expect(h.stdout.text).toContain("alias claude 'ccwestward claude'");
+    expect(h.stdout.text).toContain("# PowerShell");
+    expect(h.stdout.text).toContain("function claude { ccwestward claude @args }");
   });
 
   test("--settings changes timezone and prints custom alias snippets", async () => {
@@ -165,7 +167,16 @@ describe("ccwestward", () => {
     const h = harness();
     installDefaultAlias(h.deps.env, h.stdout);
     expect(readFileSync(path.join(h.home, ".zshrc"), "utf8")).toContain("alias claude='ccwestward claude'");
-    expect(h.stdout.text).toContain("cc-westward installed alias");
+    expect(h.stdout.text).toContain("cc-westward installed claude shortcut");
+  });
+
+  test("installDefaultAlias writes a PowerShell function on Windows", () => {
+    const h = harness();
+    installDefaultAlias({ ...h.deps.env, OS: "Windows_NT", USERPROFILE: h.home }, h.stdout);
+    expect(readFileSync(path.join(h.home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"), "utf8")).toContain(
+      "function claude { ccwestward claude @args }"
+    );
+    expect(h.stdout.text).toContain("cc-westward installed claude shortcut");
   });
 
   test("--settings can reset saved timezone and managed aliases", async () => {

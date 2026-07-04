@@ -15,10 +15,14 @@ CC Westward 是一个很小的终端包装器。首次启动 Claude 时，它会
 npm install -g cc-westward
 ```
 
-安装时会自动把下面的别名写入当前 shell 配置文件（`.zshrc`、`.bashrc` 或 fish 的 `config.fish`）：
+安装时会自动把 `claude` 快捷命令写入当前 shell 配置文件（`.zshrc`、`.bashrc`、fish 的 `config.fish`，或 Windows PowerShell profile）：
 
 ```bash
 alias claude='ccwestward claude'
+```
+
+```powershell
+function claude { ccwestward claude @args }
 ```
 
 新开终端后即可直接运行 `claude`。如果不想自动写入别名：
@@ -86,6 +90,11 @@ alias claude='ccwestward claude'
 ```fish
 # fish
 alias claude 'ccwestward claude'
+```
+
+```powershell
+# PowerShell
+function claude { ccwestward claude @args }
 ```
 
 CC Westward 会从 `PATH` 中解析真正的 `claude` 可执行文件，并跳过指向 `ccwestward` 自身的路径，避免别名递归。如果你的 Claude CLI 在自定义位置，可以设置：
