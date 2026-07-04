@@ -1,4 +1,4 @@
-# 🦅🦅🦅🇺🇸 CC Westward🇺🇸🤠🤠🤠
+# 🦅🦅🦅CCWestward🤠🤠🤠
 
 🌎 让 Claude Code 在终端中随机切换到**美国时区**运行的轻量级开源 CLI 工具 🌎
 
