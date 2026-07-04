@@ -33,6 +33,15 @@ type RunDeps = {
   stdout?: Writable;
 };
 
+export function installDefaultAlias(env: NodeJS.ProcessEnv = process.env, stdout: Writable = process.stdout): void {
+  if (env.CCWESTWARD_SKIP_ALIAS) {
+    return;
+  }
+
+  const installed = installAlias(env, "claude", "ccwestward claude");
+  stdout.write(`cc-westward installed alias claude='ccwestward claude' in ${installed.file}\n`);
+}
+
 export async function run(argv: string[], deps: RunDeps = {}): Promise<number> {
   const stdout = deps.stdout ?? process.stdout;
   const stderr = deps.stderr ?? process.stderr;

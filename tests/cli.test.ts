@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, test, vi } from "vitest";
-import { run } from "../src/index";
+import { installDefaultAlias, run } from "../src/index";
 import { randomZone, US_ZONES } from "../src/zones";
 
 function harness(rng = () => 0) {
@@ -159,6 +159,13 @@ describe("ccwestward", () => {
     expect(h.stdout.text).toContain("已写入:");
     expect(h.stdout.text).toContain("source ");
     expect(h.spawn).not.toHaveBeenCalled();
+  });
+
+  test("installDefaultAlias writes the default Claude alias", () => {
+    const h = harness();
+    installDefaultAlias(h.deps.env, h.stdout);
+    expect(readFileSync(path.join(h.home, ".zshrc"), "utf8")).toContain("alias claude='ccwestward claude'");
+    expect(h.stdout.text).toContain("cc-westward installed alias");
   });
 
   test("--settings can reset saved timezone and managed aliases", async () => {

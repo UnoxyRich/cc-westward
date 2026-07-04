@@ -2,7 +2,7 @@
 
 🌎 让 Claude Code 在终端中随机切换到**美国时区**运行的轻量级开源 CLI 工具 🌎
 
-CC Westward 是一个很小的终端包装器。首次启动 Claude 时，它会从安全的美国 IANA 时区列表中随机选择一个时区并保存，之后继续复用这个时区，保持一致。它只会给启动出来的 Claude 子进程设置 `TIMEZONE`。（不会修改系统时区！）
+CC Westward 是一个很小的终端包装器。首次启动 Claude 时，它会从安全的美国 IANA 时区列表中随机选择一个时区并保存，之后继续复用这个时区，保持一致。它只会给启动出来的 Claude 子进程设置 `TZ`。（不会修改系统时区！）
 
 ![CC Westward 演示](screenshots/example.png)
 
@@ -13,6 +13,18 @@ CC Westward 是一个很小的终端包装器。首次启动 Claude 时，它会
 
 ```bash
 npm install -g cc-westward
+```
+
+安装时会自动把下面的别名写入当前 shell 配置文件（`.zshrc`、`.bashrc` 或 fish 的 `config.fish`）：
+
+```bash
+alias claude='ccwestward claude'
+```
+
+新开终端后即可直接运行 `claude`。如果不想自动写入别名：
+
+```bash
+CCWESTWARD_SKIP_ALIAS=1 npm install -g cc-westward
 ```
 
 本地开发：
@@ -58,7 +70,7 @@ ccwestward init
 
 ## Shell 设置
 
-运行：
+全局安装会自动安装 `claude` 别名。也可以手动运行：
 
 ```bash
 ccwestward init
