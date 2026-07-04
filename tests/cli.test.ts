@@ -51,6 +51,21 @@ function writer() {
   };
 }
 
+function expectedTz(zone: string) {
+  if (process.platform !== "win32") {
+    return zone;
+  }
+
+  return (
+    {
+      "America/New_York": "EST5EDT,M3.2.0/2,M11.1.0/2",
+      "America/Chicago": "CST6CDT,M3.2.0/2,M11.1.0/2",
+      "America/Los_Angeles": "PST8PDT,M3.2.0/2,M11.1.0/2",
+      "Pacific/Honolulu": "HST10"
+    } as Record<string, string>
+  )[zone];
+}
+
 describe("ccwestward", () => {
   test("random timezone is always from the allowlist", () => {
     for (let i = 0; i <= 100; i += 1) {
@@ -62,7 +77,7 @@ describe("ccwestward", () => {
     const h = harness();
     const code = await run(["--zone", "America/New_York", "--dry-run"], h.deps);
     expect(code).toBe(0);
-    expect(h.stdout.text).toContain("TZ=America/New_York");
+    expect(h.stdout.text).toContain(`TZ=${expectedTz("America/New_York")}`);
   });
 
   test("--zone rejects zones outside the allowlist", async () => {
@@ -77,7 +92,8 @@ describe("ccwestward", () => {
   test("arguments after claude are passed through correctly", async () => {
     const h = harness();
     await run(["claude", "--dangerously-skip-permissions"], h.deps);
-    expect(h.calls[0].args).toEqual(["--dangerously-skip-permissions"]);
+    expect(h.calls[0].args).toContain("--dangerously-skip-permissions");
+    expect(h.calls[0].args).toContain("--settings");
   });
 
   test("ccwestward with no command defaults to launching Claude", async () => {
@@ -90,14 +106,14 @@ describe("ccwestward", () => {
     const h = harness();
     await run(["--zone", "America/New_York"], h.deps);
     expect(h.calls[0].command).toBe("/usr/bin/claude");
-    expect(h.calls[0].options.env.TZ).toBe("America/New_York");
+    expect(h.calls[0].options.env.TZ).toBe(expectedTz("America/New_York"));
   });
 
   test("persists the first random zone for later runs", async () => {
     const h = harness(() => 0.75);
     await run([], h.deps);
     await run([], { ...h.deps, rng: () => 0 });
-    expect(h.calls.map((call) => call.options.env.TZ)).toEqual(["America/Los_Angeles", "America/Los_Angeles"]);
+    expect(h.calls.map((call) => call.options.env.TZ)).toEqual([expectedTz("America/Los_Angeles"), expectedTz("America/Los_Angeles")]);
   });
 
   test("--reset-zone asks for a new persisted random zone", async () => {
@@ -106,7 +122,7 @@ describe("ccwestward", () => {
     await run(["--reset-zone", "--print-zone"], { ...h.deps, rng: () => 0.99 });
     await run([], { ...h.deps, rng: () => 0 });
     expect(h.stdout.text).toContain("Pacific/Honolulu");
-    expect(h.calls.map((call) => call.options.env.TZ)).toEqual(["America/New_York", "Pacific/Honolulu"]);
+    expect(h.calls.map((call) => call.options.env.TZ)).toEqual([expectedTz("America/New_York"), expectedTz("Pacific/Honolulu")]);
   });
 
   test("--dry-run does not spawn a process", async () => {
@@ -115,6 +131,8 @@ describe("ccwestward", () => {
     expect(code).toBe(0);
     expect(h.spawn).not.toHaveBeenCalled();
     expect(h.stdout.text).toContain("/usr/bin/claude");
+    expect(h.stdout.text).not.toContain("--append-system-prompt");
+    expect(h.stdout.text).toContain('{"env":{"TZ":"America/New_York"}}');
   });
 
   test("--print-zone prints a valid zone and does not spawn a process", async () => {
@@ -131,7 +149,24 @@ describe("ccwestward", () => {
     const env = { PATH: "/usr/bin" };
     await run(["--zone", "America/Chicago"], { ...h.deps, env });
     expect(env).not.toHaveProperty("TZ");
-    expect(h.calls[0].options.env.TZ).toBe("America/Chicago");
+    expect(h.calls[0].options.env.TZ).toBe(expectedTz("America/Chicago"));
+    expect(h.calls[0].args.at(-2)).toBe("--settings");
+  });
+
+  test("Windows cmd shims are spawned through cmd.exe", async () => {
+    const h = harness();
+    await run(["claude", "--version"], { ...h.deps, resolveClaude: () => "C:\\Users\\Admin\\AppData\\Roaming\\npm\\claude.CMD" });
+    if (process.platform === "win32") {
+      expect(path.basename(h.calls[0].command).toLowerCase()).toBe("cmd.exe");
+      expect(h.calls[0].args).toContain("/c");
+      expect(h.calls[0].args).toContain("/s");
+      expect(h.calls[0].args.at(-1)).toContain('"C:\\Users\\Admin\\AppData\\Roaming\\npm\\claude.CMD" "--version" "--settings"');
+      expect(h.calls[0].options.windowsVerbatimArguments).toBe(true);
+    } else {
+      expect(h.calls[0].command).toBe("C:\\Users\\Admin\\AppData\\Roaming\\npm\\claude.CMD");
+      expect(h.calls[0].args).toContain("--version");
+      expect(h.calls[0].args).toContain("--settings");
+    }
   });
 
   test("--quiet suppresses decorative output", async () => {
@@ -173,8 +208,9 @@ describe("ccwestward", () => {
 
   test("installDefaultAlias writes a PowerShell function on Windows", () => {
     const h = harness();
-    installDefaultAlias({ ...h.deps.env, OS: "Windows_NT", USERPROFILE: h.home }, h.stdout);
-    expect(readFileSync(path.join(h.home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"), "utf8")).toContain(
+    const modules = path.join(h.home, "Documents", "WindowsPowerShell", "Modules");
+    installDefaultAlias({ ...h.deps.env, OS: "Windows_NT", PSModulePath: modules, USERPROFILE: h.home }, h.stdout);
+    expect(readFileSync(path.join(h.home, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"), "utf8")).toContain(
       "function claude { ccwestward claude @args }"
     );
     expect(h.stdout.text).toContain("cc-westward installed claude shortcut");
@@ -186,14 +222,21 @@ describe("ccwestward", () => {
       cwd: path.join(__dirname, ".."),
       encoding: "utf8",
       env: {
-        ...process.env,
+        ComSpec: process.env.ComSpec,
         HOME: home,
         OS: "Windows_NT",
+        PATH: process.env.PATH,
+        PSModulePath: path.join(home, "Documents", "WindowsPowerShell", "Modules"),
+        SystemRoot: process.env.SystemRoot,
         USERPROFILE: home
       }
     });
 
-    const profile = readFileSync(path.join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"), "utf8");
+    const match = output.match(/ in (.+)\n$/);
+    expect(match).not.toBeNull();
+    const profilePath = match![1];
+    expect(profilePath).toBe(path.join(home, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"));
+    const profile = readFileSync(profilePath, "utf8");
     expect(profile).toContain("# cc-westward alias claude start");
     expect(profile).toContain("function claude { ccwestward claude @args }");
     expect(profile).toContain("# cc-westward alias claude end");

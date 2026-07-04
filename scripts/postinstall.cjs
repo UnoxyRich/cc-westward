@@ -42,7 +42,7 @@ function shellConfig(env) {
 
   if (env.OS === "Windows_NT" || process.platform === "win32") {
     return {
-      file: path.join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"),
+      file: windowsPowerShellProfile(env, home),
       kind: "powershell"
     };
   }
@@ -65,6 +65,18 @@ function shellConfig(env) {
     file: path.join(home, shell === "bash" ? ".bashrc" : ".zshrc"),
     kind: "posix"
   };
+}
+
+function windowsPowerShellProfile(env, home) {
+  const profileModulePath = (env.PSModulePath ?? "")
+    .split(path.delimiter)
+    .find((entry) => /(?:^|[\\/])(?:Windows)?PowerShell[\\/]Modules$/i.test(entry));
+
+  if (profileModulePath) {
+    return path.join(path.dirname(profileModulePath), "Microsoft.PowerShell_profile.ps1");
+  }
+
+  return path.join(home, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1");
 }
 
 function aliasLine(aliasName, target, kind) {

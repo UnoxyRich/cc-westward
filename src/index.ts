@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -31,6 +31,20 @@ type RunDeps = {
   prompt?: Prompt;
   stderr?: Writable;
   stdout?: Writable;
+};
+
+const windowsTimezones: Record<UsZone, string> = {
+  "America/New_York": "EST5EDT,M3.2.0/2,M11.1.0/2",
+  "America/Detroit": "EST5EDT,M3.2.0/2,M11.1.0/2",
+  "America/Kentucky/Louisville": "EST5EDT,M3.2.0/2,M11.1.0/2",
+  "America/Chicago": "CST6CDT,M3.2.0/2,M11.1.0/2",
+  "America/Indiana/Indianapolis": "EST5EDT,M3.2.0/2,M11.1.0/2",
+  "America/Denver": "MST7MDT,M3.2.0/2,M11.1.0/2",
+  "America/Phoenix": "MST7",
+  "America/Boise": "MST7MDT,M3.2.0/2,M11.1.0/2",
+  "America/Los_Angeles": "PST8PDT,M3.2.0/2,M11.1.0/2",
+  "America/Anchorage": "AKST9AKDT,M3.2.0/2,M11.1.0/2",
+  "Pacific/Honolulu": "HST10"
 };
 
 export function installDefaultAlias(env: NodeJS.ProcessEnv = process.env, stdout: Writable = process.stdout): void {
@@ -96,7 +110,14 @@ export async function run(argv: string[], deps: RunDeps = {}): Promise<number> {
   }
 
   if (options.dryRun) {
-    stdout.write(`TZ=${zone} ${[claude, ...options.claudeArgs].map(shellQuote).join(" ")}\n`);
+    stdout.write(
+      `TZ=${timezoneEnv(zone)} ${[
+        claude,
+        ...options.claudeArgs,
+        "--settings",
+        JSON.stringify(timezoneSettings(zone))
+      ].map(shellQuote).join(" ")}\n`
+    );
     return 0;
   }
 
@@ -104,7 +125,8 @@ export async function run(argv: string[], deps: RunDeps = {}): Promise<number> {
     stdout.write(`CC Westward → launching claude in ${zone}\n`);
   }
 
-  return spawnClaude(deps.spawn ?? spawn, claude, options.claudeArgs, { ...env, TZ: zone }, stderr);
+  const settings = temporaryTimezoneSettings(zone);
+  return spawnClaude(deps.spawn ?? spawn, claude, [...options.claudeArgs, "--settings", settings.file], { ...env, TZ: timezoneEnv(zone) }, stderr, settings.cleanup);
 }
 
 function parseArgs(argv: string[]): { options: Options } | { error: string } {
@@ -340,7 +362,7 @@ function shellConfig(env: NodeJS.ProcessEnv): { file: string; kind: "posix" | "f
   const home = env.USERPROFILE ?? env.HOME ?? os.homedir();
   if (env.OS === "Windows_NT") {
     return {
-      file: path.join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"),
+      file: windowsPowerShellProfile(env, home),
       kind: "powershell"
     };
   }
@@ -418,6 +440,14 @@ function shouldPersistZone(options: Options): boolean {
   return !options.dryRun && (!options.printZone || Boolean(options.zone || options.resetZone));
 }
 
+function timezoneEnv(zone: UsZone): string {
+  if (process.platform !== "win32") {
+    return zone;
+  }
+
+  return windowsTimezones[zone];
+}
+
 function readZone(file: string): UsZone | undefined {
   try {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as { zone?: string };
@@ -442,15 +472,83 @@ function configPath(deps: Pick<RunDeps, "configPath" | "env">): string {
   return path.join(base, "cc-westward", "config.json");
 }
 
-function spawnClaude(spawnImpl: Spawn, claude: string, args: string[], env: NodeJS.ProcessEnv, stderr: Writable): Promise<number> {
+function temporaryTimezoneSettings(zone: UsZone): { file: string; cleanup: () => void } {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "ccwestward-"));
+  const file = path.join(dir, "settings.json");
+  writeFileSync(file, `${JSON.stringify(timezoneSettings(zone))}\n`, { mode: 0o600 });
+  return {
+    file,
+    cleanup: () => rmSync(dir, { force: true, recursive: true })
+  };
+}
+
+function timezoneSettings(zone: UsZone): { env: { TZ: UsZone } } {
+  return { env: { TZ: zone } };
+}
+
+function spawnClaude(
+  spawnImpl: Spawn,
+  claude: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  stderr: Writable,
+  cleanup: () => void = () => undefined
+): Promise<number> {
   return new Promise((resolve) => {
-    const child = spawnImpl(claude, args, { env, stdio: "inherit" });
+    const command = spawnCommand(claude, args);
+    const child = spawnImpl(command.command, command.args, {
+      env,
+      stdio: "inherit",
+      windowsVerbatimArguments: command.windowsVerbatimArguments
+    });
+    let cleaned = false;
+    const clean = () => {
+      if (cleaned) {
+        return;
+      }
+      cleaned = true;
+      cleanup();
+    };
     child.once("error", (error) => {
+      clean();
       stderr.write(`${error.message}\n`);
       resolve(1);
     });
-    child.once("exit", (code) => resolve(code ?? 1));
+    child.once("exit", (code) => {
+      clean();
+      resolve(code ?? 1);
+    });
   });
+}
+
+function spawnCommand(command: string, args: string[]): { command: string; args: string[]; windowsVerbatimArguments?: boolean } {
+  if (process.platform !== "win32" || !/\.(?:bat|cmd)$/i.test(command)) {
+    return { command, args };
+  }
+
+  const comspec = process.env.ComSpec || "cmd.exe";
+  const commandLine = [command, ...args].map(windowsCmdQuote).join(" ");
+  return {
+    command: comspec,
+    args: ["/d", "/s", "/c", `"${commandLine}"`],
+    windowsVerbatimArguments: true
+  };
+}
+
+function windowsPowerShellProfile(env: NodeJS.ProcessEnv, home: string): string {
+  const profileModulePath = (env.PSModulePath ?? "")
+    .split(path.delimiter)
+    .find((entry) => /(?:^|[\\/])(?:Windows)?PowerShell[\\/]Modules$/i.test(entry));
+
+  if (profileModulePath) {
+    return path.join(path.dirname(profileModulePath), "Microsoft.PowerShell_profile.ps1");
+  }
+
+  return path.join(home, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1");
+}
+
+function windowsCmdQuote(value: string): string {
+  return `"${value.replaceAll('"', '\\"')}"`;
 }
 
 function initText(): string {
