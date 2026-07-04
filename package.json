@@ -8,6 +8,7 @@
   },
   "files": [
     "dist",
+    "scripts",
     "README.md",
     "LICENSE"
   ],
@@ -16,7 +17,7 @@
     "dev": "tsx src/index.ts",
     "test": "vitest",
     "lint": "eslint .",
-    "postinstall": "node -e \"if(require('fs').existsSync('./dist/index.js'))require('./dist/index.js').installDefaultAlias()\"",
+    "postinstall": "node scripts/postinstall.cjs",
     "prepack": "npm run build"
   },
   "devDependencies": {

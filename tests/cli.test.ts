@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import os from "node:os";
@@ -177,6 +178,26 @@ describe("ccwestward", () => {
       "function claude { ccwestward claude @args }"
     );
     expect(h.stdout.text).toContain("cc-westward installed claude shortcut");
+  });
+
+  test("postinstall writes a permanent PowerShell alias on Windows without dist", () => {
+    const home = mkdtempSync(path.join(os.tmpdir(), "ccwestward-postinstall-"));
+    const output = execFileSync(process.execPath, ["scripts/postinstall.cjs"], {
+      cwd: path.join(__dirname, ".."),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        HOME: home,
+        OS: "Windows_NT",
+        USERPROFILE: home
+      }
+    });
+
+    const profile = readFileSync(path.join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"), "utf8");
+    expect(profile).toContain("# cc-westward alias claude start");
+    expect(profile).toContain("function claude { ccwestward claude @args }");
+    expect(profile).toContain("# cc-westward alias claude end");
+    expect(output).toContain("cc-westward installed claude shortcut");
   });
 
   test("installDefaultAlias writes a PowerShell function from Homebrew pwsh", () => {
