@@ -179,6 +179,15 @@ describe("ccwestward", () => {
     expect(h.stdout.text).toContain("cc-westward installed claude shortcut");
   });
 
+  test("installDefaultAlias writes a PowerShell function from Homebrew pwsh", () => {
+    const h = harness();
+    installDefaultAlias({ ...h.deps.env, PSModulePath: "/opt/homebrew/Cellar/powershell/Modules" }, h.stdout);
+    expect(readFileSync(path.join(h.home, ".config", "powershell", "Microsoft.PowerShell_profile.ps1"), "utf8")).toContain(
+      "function claude { ccwestward claude @args }"
+    );
+    expect(h.stdout.text).toContain("cc-westward installed claude shortcut");
+  });
+
   test("--settings can reset saved timezone and managed aliases", async () => {
     const h = harness();
     const code = await run(["--settings"], { ...h.deps, prompt: prompt("1", "4", "4", "cw", "5", "reset", "6") });

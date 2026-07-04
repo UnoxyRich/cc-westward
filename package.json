@@ -1,6 +1,6 @@
 {
   "name": "cc-westward",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A tiny CLI wrapper that sends Claude Code westward, one timezone at a time.",
   "license": "MIT",
   "bin": {
